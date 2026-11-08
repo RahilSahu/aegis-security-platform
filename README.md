@@ -74,7 +74,7 @@ python -m aegis.cli report --db aegis.json --out report.md
 uvicorn api:app --port 8200
 ```
 
-Sample scanner exports are in `samples/`, pointed at a local test target, so the whole pipeline can be tried end to end.
+Reports come in three production formats: Markdown for tickets, standalone print-ready HTML for clients and management (executive metrics, per-finding evidence, OWASP mapping, fix effort and SLA), and JSON for pipelines. Sample scanner exports are in `samples/`, pointed at a local test target, so the whole pipeline can be tried end to end.
 
 ## Verified classes in v1
 
@@ -92,7 +92,7 @@ security headers, CORS reflection, cookie flags, TLS certificate validity, JWT s
 
 ## Tests
 
-29 tests, run like a QA suite, not a smoke test: parser and merge behaviour on the bundled cross-tool samples, Burp XML with base64 fields, malformed-line tolerance, scoring rules, JWT verification, TLS verification against a locally generated self-signed certificate, AI triage shape and the status invariant, the full API flow, hostile-input handling (garbage uploads return 422, finding titles are HTML-escaped in the dashboard), concurrent duplicate ingestion, a 1,000-finding load check, bulk concurrent verification, retest diffing, the CLI end to end, and **live verification against a deliberately vulnerable local target and its patched twin** (the vulnerable one verifies everything, the patched one refutes everything). The dashboard is additionally screenshot-tested at 1920, 1366, 768 and 390 px widths with zero console errors and no layout overflow.
+48 tests, run like a QA suite, not a smoke test: parser and merge behaviour on the bundled cross-tool samples, Burp XML with base64 fields, malformed-line tolerance, scoring rules, JWT verification, TLS verification against a locally generated self-signed certificate, AI triage shape and the status invariant, the full API flow, hostile-input handling (garbage uploads return 422, finding titles are HTML-escaped in the dashboard), concurrent duplicate ingestion, a 1,000-finding load check, bulk concurrent verification, retest diffing, the CLI end to end, and **live verification against a deliberately vulnerable local target and its patched twin** (the vulnerable one verifies everything, the patched one refutes everything). Round two added fingerprint-identity tests (ports separate apps, trailing slashes and numeric IDs merge), a fuzz dedupe over 300 randomised scanner variants, SSRF-guard tests, report determinism and metrics checks, LLM-failure fallback, double-ingest idempotency, and atomic-save round-trips. The dashboard and the HTML report are additionally screenshot-tested at desktop and phone widths.
 
 ```bash
 python -m pytest tests -q   # or: python -m unittest discover -s tests
@@ -100,7 +100,7 @@ python -m pytest tests -q   # or: python -m unittest discover -s tests
 
 ## Responsible use
 
-Verifiers make only read-only checks, and Aegis has no exploitation capability by design. Still: run verification only against systems you own or have explicit authorisation to test. This is a professional tool for security teams, not a scanner for other people's infrastructure.
+Verifiers make only read-only checks, and Aegis has no exploitation capability by design. Because Aegis fetches URLs taken from scanner files, it also defends itself: an SSRF guard refuses to fetch cloud metadata and link-local targets (a crafted scanner export is an attack vector), overridable only by an explicit operator opt-in. Still: run verification only against systems you own or have explicit authorisation to test. This is a professional tool for security teams, not a scanner for other people's infrastructure.
 
 ## Roadmap
 
