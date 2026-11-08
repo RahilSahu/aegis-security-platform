@@ -1,0 +1,10 @@
+# Core platform: ingestion, verification, reporting are pure stdlib.
+# The web service needs:
+fastapi
+uvicorn[standard]
+
+# Optional: AI triage with a provider key (install the one you use).
+# Without any of these, the built-in heuristic triage engine is used.
+# langchain-openai
+# langchain-anthropic
+# langchain-google-genai
