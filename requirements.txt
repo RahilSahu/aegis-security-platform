@@ -2,6 +2,7 @@
 # The web service needs:
 fastapi
 uvicorn[standard]
+python-multipart
 
 # Optional: AI triage with a provider key (install the one you use).
 # Without any of these, the built-in heuristic triage engine is used.
