@@ -15,14 +15,21 @@ class FindingStore:
     def add_many(self, incoming: list[Finding]) -> dict:
         """Add findings, merging duplicates by fingerprint.
         Returns counts: added vs merged."""
+        import time
+
+        now = time.time()
         added = merged = 0
         for finding in incoming:
             existing = self.findings.get(finding.id)
             if existing is None:
+                if not finding.first_seen:
+                    finding.first_seen = now
+                finding.last_seen = now
                 self.findings[finding.id] = finding
                 added += 1
             else:
                 existing.merge(finding)
+                existing.last_seen = now
                 merged += 1
         return {"added": added, "merged": merged, "total": len(self.findings)}
 

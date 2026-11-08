@@ -87,6 +87,8 @@ class Finding:
     verification: dict = field(default_factory=dict)  # verifier output + evidence
     triage: dict = field(default_factory=dict)  # AI or heuristic assessment
     risk_score: float = 0.0
+    first_seen: float = 0.0
+    last_seen: float = 0.0
     id: str = ""
 
     def __post_init__(self) -> None:

@@ -64,7 +64,9 @@ def parse_zap(text: str) -> list[Finding]:
                     target=target,
                     endpoint=endpoint,
                     description=alert.get("desc", ""),
-                    cwe=f"CWE-{alert.get('cweid')}" if alert.get("cweid") else "",
+                    cwe=f"CWE-{alert.get('cweid')}"
+                    if str(alert.get("cweid") or "") not in ("", "-1")
+                    else "",  # ZAP uses cweid -1 for "no CWE", which is not CWE--1
                     sources=["zap"],
                     raw_evidence={"instances": len(instances), "solution": alert.get("solution", "")},
                 )

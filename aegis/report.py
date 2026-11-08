@@ -103,8 +103,12 @@ def markdown_report(store: FindingStore) -> str:
 
 
 def json_report(store: FindingStore) -> str:
+    from datetime import datetime, timezone
+
     payload = {
         "tool": "aegis",
+        "schema": "aegis.report/1",
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "summary": summary_metrics(store),
         "findings": [f.to_dict() for f in store.list()],
     }

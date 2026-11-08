@@ -27,9 +27,13 @@ def main(argv: list[str] | None = None) -> int:
     p_ingest.add_argument("files", nargs="+")
     p_ingest.add_argument("--db", default="aegis.json")
 
-    for name in ("verify", "triage"):
-        p = sub.add_parser(name)
-        p.add_argument("--db", default="aegis.json")
+    p_verify = sub.add_parser("verify")
+    p_verify.add_argument("--db", default="aegis.json")
+    p_verify.add_argument("--timeout", type=float, default=8.0)
+    p_verify.add_argument("--workers", type=int, default=8)
+
+    p_triage = sub.add_parser("triage")
+    p_triage.add_argument("--db", default="aegis.json")
 
     p_report = sub.add_parser("report")
     p_report.add_argument("--db", default="aegis.json")
@@ -60,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         store.save(args.db)
         print(f"ingested: {total['added']} new, {total['merged']} merged as duplicates, {len(store.findings)} total")
     elif args.cmd == "verify":
-        counts = verify.run_verifications(store)
+        counts = verify.run_verifications(store, timeout=args.timeout, workers=args.workers)
         store.save(args.db)
         print(f"verification: {counts}")
     elif args.cmd == "triage":

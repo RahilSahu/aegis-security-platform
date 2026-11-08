@@ -17,9 +17,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from fastapi import FastAPI, File, HTTPException, UploadFile  # noqa: E402
+from fastapi import Body, FastAPI, File, HTTPException, UploadFile  # noqa: E402
 from fastapi.responses import HTMLResponse, PlainTextResponse  # noqa: E402
 
+import aegis  # noqa: E402
 from aegis import ai, ingest, report, verify  # noqa: E402
 from aegis.store import FindingStore  # noqa: E402
 
@@ -35,7 +36,13 @@ def _persist() -> None:
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "ai_provider": ai.detect_provider(), **STORE.stats()}
+    return {
+        "status": "ok",
+        "version": aegis.__version__,
+        "ai_provider": ai.detect_provider(),
+        "verifiers": len(verify.VERIFIERS),
+        **STORE.stats(),
+    }
 
 
 @app.get("/api/findings")
@@ -63,8 +70,13 @@ async def ingest_file(file: UploadFile = File(...)):
 
 
 @app.post("/api/verify")
-def run_verify():
-    counts = verify.run_verifications(STORE)
+def run_verify(payload: dict | None = Body(None)):
+    payload = payload or {}
+    counts = verify.run_verifications(
+        STORE,
+        timeout=float(payload.get("timeout", 8.0)),
+        workers=int(payload.get("workers", 8)),
+    )
     _persist()
     return counts
 
