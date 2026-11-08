@@ -77,7 +77,11 @@ def run_triage():
 
 
 @app.get("/api/report")
-def get_report():
+def get_report(format: str = "md"):
+    if format == "html":
+        return HTMLResponse(report.html_report(STORE))
+    if format == "json":
+        return PlainTextResponse(report.json_report(STORE), media_type="application/json")
     return PlainTextResponse(report.markdown_report(STORE))
 
 

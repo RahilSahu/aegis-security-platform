@@ -41,8 +41,15 @@ class FindingStore:
         return {"total": len(self.findings), "by_status": by_status, "by_severity": by_severity}
 
     def save(self, path: str | Path) -> None:
+        """Atomic save: write to a temp file in the same directory and
+        rename, so a crash mid-write can never corrupt the database."""
+        import os
+
+        path = Path(path)
         data = {fid: f.to_dict() for fid, f in self.findings.items()}
-        Path(path).write_text(json.dumps(data, indent=1), encoding="utf-8")
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(data, indent=1), encoding="utf-8")
+        os.replace(tmp, path)
 
     @classmethod
     def load(cls, path: str | Path) -> "FindingStore":

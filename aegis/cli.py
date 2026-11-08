@@ -34,6 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     p_report = sub.add_parser("report")
     p_report.add_argument("--db", default="aegis.json")
     p_report.add_argument("--out", default=None)
+    p_report.add_argument("--format", choices=["md", "html", "json"], default="md")
 
     p_diff = sub.add_parser("diff", help="compare two verification snapshots")
     p_diff.add_argument("before")
@@ -67,7 +68,9 @@ def main(argv: list[str] | None = None) -> int:
         store.save(args.db)
         print(f"triaged {count} findings (engine: {ai.detect_provider() if ai.detect_provider() != 'none' else 'heuristic'})")
     elif args.cmd == "report":
-        text = report.markdown_report(store)
+        text = {"md": report.markdown_report, "html": report.html_report, "json": report.json_report}[
+            args.format
+        ](store)
         if args.out:
             Path(args.out).write_text(text, encoding="utf-8")
             print(f"report written to {args.out}")

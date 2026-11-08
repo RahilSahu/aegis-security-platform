@@ -52,12 +52,23 @@ def _normalise_severity(value: str | None) -> str:
 
 
 def fingerprint(vuln_class: str, target: str, endpoint: str) -> str:
-    """Stable identity of an issue, independent of which tool saw it."""
+    """Stable identity of an issue, independent of which tool saw it.
+
+    Identity is class + host + port + normalised path. The port
+    matters (an app on :8443 is not the app on :443), the scheme does
+    not (http and https views of one app are one issue), numeric path
+    segments are templated (/users/42 == /users/43), and a trailing
+    slash never splits an issue in two."""
     parsed = urlparse(target if "://" in target else f"//{target}")
     host = (parsed.hostname or target).lower()
+    port = parsed.port
+    if port is None and endpoint:
+        port = urlparse(endpoint).port
     path = (urlparse(endpoint).path if endpoint else parsed.path) or "/"
     path = re.sub(r"/\d+(?=/|$)", "/{id}", path)  # /users/42 -> /users/{id}
-    raw = f"{vuln_class}|{host}|{path}"
+    if len(path) > 1 and path.endswith("/"):
+        path = path.rstrip("/")
+    raw = f"{vuln_class}|{host}|{port or ''}|{path}"
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
 
 

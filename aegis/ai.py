@@ -68,6 +68,33 @@ CLASS_GUIDANCE = {
 }
 
 
+OWASP_MAP = {
+    "security-headers": "A05:2021 Security Misconfiguration",
+    "cors": "A05:2021 Security Misconfiguration",
+    "cookie-flags": "A05:2021 Security Misconfiguration",
+    "tls": "A02:2021 Cryptographic Failures",
+    "jwt": "A07:2021 Identification and Authentication Failures",
+    "sensitive-files": "A05:2021 Security Misconfiguration",
+    "directory-listing": "A05:2021 Security Misconfiguration",
+    "info-disclosure": "A05:2021 Security Misconfiguration",
+    "other": "Unmapped",
+}
+
+EFFORT_MAP = {
+    "security-headers": "S (config change, under a day)",
+    "cors": "S (config change, under a day)",
+    "cookie-flags": "S (config change, under a day)",
+    "tls": "S (renewal and automation, under a day)",
+    "jwt": "M (library config plus session re-issue, days)",
+    "sensitive-files": "S (server rules, under a day) plus secret rotation",
+    "directory-listing": "S (config change, under a day)",
+    "info-disclosure": "S (config change, under a day)",
+    "other": "M (team assessment required)",
+}
+
+SLA_DAYS = {"P1": 7, "P2": 30, "P3": 90, "P4": 180}
+
+
 def detect_provider() -> str:
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
@@ -144,13 +171,20 @@ def _llm_triage(finding: Finding, provider: str) -> dict:
 
 def triage_finding(finding: Finding, provider: str | None = None) -> dict:
     provider = provider if provider is not None else detect_provider()
+    result = None
     if provider != "none":
         try:
-            finding.triage = _llm_triage(finding, provider)
-            return finding.triage
+            result = _llm_triage(finding, provider)
         except Exception:
-            pass  # fall through to the heuristic engine, stated in the output
-    finding.triage = heuristic_triage(finding)
+            result = None  # fall through to the heuristic engine
+    if result is None:
+        result = heuristic_triage(finding)
+    # Enrichment is deterministic and applies to both engines: the
+    # model writes prose, the platform owns taxonomy and SLAs.
+    result.setdefault("owasp", OWASP_MAP.get(finding.vuln_class, "Unmapped"))
+    result.setdefault("effort", EFFORT_MAP.get(finding.vuln_class, "M (team assessment required)"))
+    result.setdefault("sla_days", SLA_DAYS.get(result.get("priority", "P4"), 180))
+    finding.triage = result
     return finding.triage
 
 
