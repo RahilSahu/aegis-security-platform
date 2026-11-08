@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import ai, ingest, report, verify
+from . import ai, diff, ingest, report, verify
 from .store import FindingStore
 
 
@@ -35,7 +35,19 @@ def main(argv: list[str] | None = None) -> int:
     p_report.add_argument("--db", default="aegis.json")
     p_report.add_argument("--out", default=None)
 
+    p_diff = sub.add_parser("diff", help="compare two verification snapshots")
+    p_diff.add_argument("before")
+    p_diff.add_argument("after")
+
     args = parser.parse_args(argv)
+    if args.cmd == "diff":
+        result = diff.compare(FindingStore.load(args.before), FindingStore.load(args.after))
+        s = result["summary"]
+        print(f"fixed: {s['fixed']} | still open: {s['persistent']} | regressed: {s['regressed']} | new: {s['new']}")
+        for name in ("fixed", "persistent", "regressed", "new"):
+            for item in result[name]:
+                print(f"  [{name}] {item['title']} ({item['target']})")
+        return 0
     store = FindingStore.load(args.db)
 
     if args.cmd == "ingest":

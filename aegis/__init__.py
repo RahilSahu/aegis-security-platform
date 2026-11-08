@@ -6,4 +6,4 @@ checks, triaged by an AI that advises but never decides, and reported
 with evidence.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

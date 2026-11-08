@@ -20,6 +20,7 @@ import re
 import socket
 import ssl
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -39,11 +40,17 @@ def _url(finding: Finding) -> str:
 
 
 def _get(url: str, headers: dict | None = None, timeout: float = 8.0):
+    """GET that returns error responses instead of raising on them:
+    a 404 page still carries real headers worth judging. Only
+    connection-level failures raise."""
     req = urllib.request.Request(url, headers={**_UA, **(headers or {})}, method="GET")
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    return urllib.request.urlopen(req, timeout=timeout, context=ctx)
+    try:
+        return urllib.request.urlopen(req, timeout=timeout, context=ctx)
+    except urllib.error.HTTPError as err:
+        return err
 
 
 def _result(status: str, detail: str, evidence: dict | None = None) -> dict:
@@ -175,6 +182,49 @@ def verify_tls(finding: Finding, timeout: float = 8.0) -> dict:
     return _result("refuted", f"certificate valid with {days} days remaining", evidence)
 
 
+def _origin(finding: Finding) -> str:
+    parsed = urlparse(_url(finding))
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def verify_sensitive_files(finding: Finding, timeout: float = 8.0) -> dict:
+    """Read-only probe of the two classic exposures: /.env and
+    /.git/HEAD. Verified only on content markers, never on a bare
+    200 (many apps return 200 for every path with a soft-404 page)."""
+    origin = _origin(finding)
+    probes = [
+        ("/.env", re.compile(r"(?m)^[A-Z][A-Z0-9_]{2,}\s*=\s*\S+")),
+        ("/.git/HEAD", re.compile(r"^ref:\s+refs/")),
+    ]
+    exposed = []
+    errors = 0
+    for path, marker in probes:
+        try:
+            resp = _get(origin + path, timeout=timeout)
+            body = resp.read(8192).decode("utf-8", errors="replace")
+            if resp.getcode() == 200 and marker.search(body):
+                exposed.append(path)
+        except Exception:
+            errors += 1
+    if exposed:
+        return _result("verified", f"sensitive file(s) publicly readable: {', '.join(exposed)}", {"exposed": exposed})
+    if errors == len(probes):
+        return _result("inconclusive", f"could not reach {origin}", {})
+    return _result("refuted", "neither /.env nor /.git/HEAD is publicly readable", {})
+
+
+def verify_directory_listing(finding: Finding, timeout: float = 8.0) -> dict:
+    url = _url(finding)
+    try:
+        resp = _get(url, timeout=timeout)
+        body = resp.read(16384).decode("utf-8", errors="replace")
+    except Exception as exc:
+        return _result("inconclusive", f"could not fetch {url}: {exc}")
+    if re.search(r"<title>Index of /", body) or re.search(r"<h1>Index of /", body):
+        return _result("verified", "directory listing is enabled (Index of page)", {})
+    return _result("refuted", "no directory listing signature in the response", {})
+
+
 VERIFIERS = {
     "security-headers": verify_security_headers,
     "cors": verify_cors,
@@ -182,18 +232,29 @@ VERIFIERS = {
     "info-disclosure": verify_info_disclosure,
     "jwt": verify_jwt,
     "tls": verify_tls,
+    "sensitive-files": verify_sensitive_files,
+    "directory-listing": verify_directory_listing,
 }
 
 
-def run_verifications(store: FindingStore, timeout: float = 8.0) -> dict:
-    """Verify every finding that has a verifier. Returns counts."""
+def run_verifications(store: FindingStore, timeout: float = 8.0, workers: int = 8) -> dict:
+    """Verify every finding that has a verifier, concurrently.
+    Returns counts. Verification is I/O-bound (one or two GETs per
+    finding), so a thread pool takes a 500-finding backlog from
+    minutes to seconds."""
+    from concurrent.futures import ThreadPoolExecutor
+
     counts = {"verified": 0, "refuted": 0, "inconclusive": 0, "skipped": 0}
+    jobs = []
     for finding in store.findings.values():
         verifier = VERIFIERS.get(finding.vuln_class)
         if verifier is None:
             counts["skipped"] += 1
-            continue
-        outcome = verifier(finding, timeout=timeout)
+        else:
+            jobs.append((finding, verifier))
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        outcomes = list(pool.map(lambda j: j[1](j[0], timeout=timeout), jobs))
+    for (finding, _), outcome in zip(jobs, outcomes):
         finding.status = outcome["status"]
         finding.verification = {"verifier": finding.vuln_class, **outcome}
         finding.recompute_score()

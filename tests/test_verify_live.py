@@ -17,6 +17,29 @@ class FixtureHandler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if self.path == "/.env":
+            if self.fixed:
+                return self.send_error(404)
+            body = b"DATABASE_URL=postgres://user:pass@db.internal:5432/app\nAPI_KEY=sk-test-123456\n"
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
+        if self.path == "/.git/HEAD":
+            if self.fixed:
+                return self.send_error(404)
+            body = b"ref: refs/heads/main\n"
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
+        if self.path.startswith("/files"):
+            if not self.fixed:
+                body = b"<html><head><title>Index of /files/</title></head><body><h1>Index of /files/</h1><a href='backup.zip'>backup.zip</a></body></html>"
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                return self.wfile.write(body)
         body = b"ok"
         self.send_response(200)
         if self.fixed:

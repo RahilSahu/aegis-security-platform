@@ -29,6 +29,8 @@ CLASS_PATTERNS: list[tuple[str, str]] = [
     (r"cookie|httponly|secure flag|samesite", "cookie-flags"),
     (r"tls|ssl|certificate|expir", "tls"),
     (r"jwt|json web token", "jwt"),
+    (r"sensitive file|\.env|git (config|expos)|exposed.*(config|backup|\.git)|source code disclosure", "sensitive-files"),
+    (r"directory listing|directory browsing|index of /", "directory-listing"),
     (r"version disclosure|server banner|x-powered-by|information disclosure|server leaks", "info-disclosure"),
 ]
 

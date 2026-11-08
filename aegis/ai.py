@@ -50,6 +50,16 @@ CLASS_GUIDANCE = {
         "remediation": "Reject alg=none at the library level, pin the expected algorithm server-side, verify signatures with the correct key type, and enforce exp validation.",
         "exploitability": 9,
     },
+    "sensitive-files": {
+        "impact": "A publicly readable .env or .git directory hands attackers credentials, API keys and full source code: this is the first step of most real-world breaches, not a theoretical weakness.",
+        "remediation": "Block /.env, /.git and other dotfiles at the server and CDN level, remove them from the web root, and rotate every secret the file contained, because it must be assumed compromised.",
+        "exploitability": 9,
+    },
+    "directory-listing": {
+        "impact": "Directory listings expose backup files, configs and upload folders that were never meant to be linked, giving attackers a map of everything unprotected on the server.",
+        "remediation": "Disable autoindex / directory browsing at the server level and add an index file to sensitive folders as defence in depth.",
+        "exploitability": 6,
+    },
     "info-disclosure": {
         "impact": "Version banners hand attackers a shopping list: every disclosed version maps to known CVEs and exploit modules, cutting their reconnaissance time to minutes.",
         "remediation": "Suppress version tokens (server_tokens off, ServerTokens Prod, remove X-Powered-By) at the server and framework level.",

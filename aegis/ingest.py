@@ -25,7 +25,10 @@ def parse_nuclei(text: str) -> list[Finding]:
         line = line.strip()
         if not line:
             continue
-        item = json.loads(line)
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue  # one corrupt line must not kill a 10k-line scan export
         info = item.get("info", {})
         target = item.get("host") or item.get("matched-at") or ""
         findings.append(
@@ -66,6 +69,45 @@ def parse_zap(text: str) -> list[Finding]:
                     raw_evidence={"instances": len(instances), "solution": alert.get("solution", "")},
                 )
             )
+    return findings
+
+
+def parse_burp(text: str) -> list[Finding]:
+    """Burp Suite issue export (XML). Burp base64-encodes some fields
+    in real exports; plain exports are handled, base64 fields are
+    detected and decoded when they decode cleanly as UTF-8."""
+    import base64
+    import xml.etree.ElementTree as ET
+
+    def field(issue, tag: str) -> str:
+        el = issue.find(tag)
+        if el is None or el.text is None:
+            return ""
+        value = el.text.strip()
+        if el.get("base64") == "true":
+            try:
+                return base64.b64decode(value).decode("utf-8", errors="replace")
+            except Exception:
+                return value
+        return value
+
+    root = ET.fromstring(text)
+    findings = []
+    for issue in root.iter("issue"):
+        host_el = issue.find("host")
+        host = host_el.text.strip() if host_el is not None and host_el.text else ""
+        path = field(issue, "path")
+        findings.append(
+            _finding(
+                title=field(issue, "name") or "Burp issue",
+                severity=field(issue, "severity") or "info",
+                target=host,
+                endpoint=(host + path) if host else path,
+                description=field(issue, "issueDetail") or field(issue, "issueBackground"),
+                sources=["burp"],
+                raw_evidence={"confidence": field(issue, "confidence")},
+            )
+        )
     return findings
 
 
@@ -117,11 +159,15 @@ def parse(text: str, fmt: str = "auto") -> list[Finding]:
         return parse_nuclei(text)
     if fmt == "zap":
         return parse_zap(text)
+    if fmt == "burp":
+        return parse_burp(text)
     if fmt == "csv":
         return parse_csv(text)
     if fmt == "generic":
         return parse_generic(text)
     stripped = text.lstrip()
+    if stripped.startswith("<") and "<issues" in stripped[:2000]:
+        return parse_burp(text)
     if stripped.startswith("{") and '"site"' in stripped[:2000]:
         return parse_zap(text)
     if stripped.startswith("{") and '"template-id"' in stripped[:2000]:
